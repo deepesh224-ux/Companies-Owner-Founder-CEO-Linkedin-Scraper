@@ -2,11 +2,13 @@ import requests
 import pandas as pd
 import time
 import random
+from dotenv import load_dotenv
+import os
 
-
+load_dotenv()
 # === SET YOUR KEYS HERE ===
-SERPER_API_KEY = "SERPER_API_KEY"
-GITHUB_GPT_TOKEN = "GITHUB_GPT_TOKEN"
+SERPER_API_KEY = os.getenv('SERPER_API_KEY')
+GITHUB_GPT_TOKEN = os.getenv('OPENAI_API_KEY')
 GITHUB_GPT_ENDPOINT = "https://models.github.ai/inference/chat/completions"
 MODEL_NAME = "openai/gpt-4o-mini"
 
