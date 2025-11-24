@@ -1,0 +1,14 @@
+name: Run Scraper Manually
+on:
+  workflow_dispatch:  # enables manual trigger
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - run: python main.py
