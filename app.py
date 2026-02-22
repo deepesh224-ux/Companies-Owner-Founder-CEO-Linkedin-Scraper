@@ -178,3 +178,20 @@ with tab1:
                 st.subheader("Results")
                 st.dataframe(results_df)
                 
+                csv = results_df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="Download Results as CSV",
+                    data=csv,
+                    file_name="founders_ceos_linkedin.csv",
+                    mime="text/csv",
+                )
+
+with tab2:
+    single_company = st.text_input("Enter Company Name", placeholder="e.g., Tesla")
+    if st.button("Search Profile"):
+        if single_company:
+            results_df = process_scraping([single_company])
+            st.subheader("Result")
+            st.dataframe(results_df)
+        else:
+            st.warning("Please enter a company name.")
