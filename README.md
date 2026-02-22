@@ -1,64 +1,67 @@
-# Companies-Owner-Founder-CEO-Linkedin-Scraper
-This project automates executive research by extracting LinkedIn profiles of company leaders (CEO, Founder, etc.) using Serper API for search and GitHub-hosted GPT for selection. It processes a company list from CSV and outputs the most relevant profile links into a new CSV file.
+# 🔍 Intelligent LinkedIn Executive Scraper
 
-- Send this query to **Serper API** → get structured JSON search results.  
-- Collect only `linkedin.com/in/...` profile links.  
+This project automates executive research by extracting LinkedIn profiles of company leaders (CEO, Founder, etc.) using **Serper API** for context-rich search and **Google Gemini AI** for intelligent selection.
 
-✅ *Example:* For Tesla →  
-- `Elon Musk – linkedin.com/in/elonmusk`  
-- `Random Engineer – linkedin.com/in/john-smith`  
+It features a modern **Streamlit UI** with built-in resilience and high-precision matching.
 
 ---
 
-## 3. Pick Best Profile (`pick_best_profile`)
-- Send all LinkedIn results + company name to **GitHub GPT API**.  
-- Prompt asks GPT:  
-*“Which profile is most likely the Founder/CEO/Owner?”*  
-- GPT returns just one LinkedIn URL (best match).  
+## 🚀 Intelligent Workflow
 
-✅ *Example:* For Tesla →  
-- `https://linkedin.com/in/elonmusk`
-
----
-
-## 4. CSV Processing Loop (`process_companies`)
-- Read `companies.csv`.  
-- For each company:  
-1. Get candidate profiles (via Serper).  
-2. Select best match (via GPT).  
-3. Handle errors gracefully.  
-- Save results in `founders_ceos_linkedin.csv` with columns:  
-- `Company`  
-- `Best LinkedIn URL`  
-- `Error`  
+```mermaid
+graph TD
+    A[User Input: CSV or Text] --> B[Serper API Search]
+    B --> C[Extract Titles + URLs + Snippets]
+    C --> D{AI Reasoner: Gemini}
+    D -- "Context Check: Is this the main company?" --> E[Select Single Best Profile]
+    E -- "429 Error?" --> F{Resilience Layer}
+    F -- "Yes" --> G[Wait & Auto-Retry]
+    F -- "No" --> H[Display Result]
+    H --> I[CSV Download]
+```
 
 ---
 
-## 5. Rate Limit Handling
-- Adds `time.sleep(1)` between requests → prevents API blocks.  
+## 🛠️ Advanced Features
+- **Context-Aware Precision**: Pulls search "snippets" to help the AI distinguish between primary companies and similarly named affiliates.
+- **Resilience Layer**: Built-in exponential backoff to handle `429 RESOURCE_EXHAUSTED` (Rate Limit) errors automatically.
+- **Dual Mode**: Process companies via bulk CSV upload or search for a single company instantly.
+- **Modern SDK**: Fully migrated to the official `google-genai` library for stability and performance.
+- **Smart Logic**: Prioritizes CURRENT roles and globally recognized leaders for famous entities.
 
 ---
 
-# 🌐 APIs Explained
+## ⚙️ Setup & Usage
 
-### 🔹 Serper API
-- A JSON wrapper around Google Search.  
-- **Input:** `"site:linkedin.com/in Tesla CEO"`  
-- **Output:** Structured results (title, link, snippet).  
-- Used to collect candidate LinkedIn URLs.  
+1. **Install Dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-### 🔹 GitHub AI API
-- Proxy endpoint to use OpenAI models (e.g., `gpt-4o-mini`).  
-- **Endpoint:** `https://models.github.ai/inference/chat/completions`  
-- **Input:** Prompt + messages.  
-- **Output:** AI reasoning (best LinkedIn profile).  
+2. **Configure API Keys**:
+   Create a `.env` file in the root directory:
+   ```env
+   SERPER_API_KEY=your_serper_key
+   GEMINI_API_KEY=your_gemini_key
+   ```
+
+3. **Run the Application**:
+   ```bash
+   streamlit run app.py
+   ```
 
 ---
 
-# ⚖️ Why Use Both?
-- **Serper = Data collection** (find possible profiles).  
-- **GitHub AI = Data interpretation** (choose the right profile).  
+## 🌐 Tech Stack
+- **Frontend**: Streamlit
+- **Search**: Serper.dev / Google Custom Search
+- **AI**: Gemini 1.5/2.0 (via `google-genai`)
+- **Resilience**: Custom automatic retry with backoff.
 
-✅ In short:  
-- *Serper = Google Search in JSON.*  
-- *GitHub AI = Smart filtering with GPT.*  
+---
+
+## 🤝 Project Structure
+- `app.py`: The intelligent Streamlit web application.
+- `kink2.py`: Original CLI script (legacy).
+- `requirements.txt`: Project dependencies with the latest SDKs.
+- `.env`: (Ignored) Your private API keys.

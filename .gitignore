@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.py[cod]
+*$py.class
+.streamlit/
+venv/
+env/
+ENV/
+.DS_Store
+*.csv
+!companies.csv
