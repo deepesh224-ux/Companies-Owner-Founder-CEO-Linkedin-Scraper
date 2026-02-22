@@ -118,3 +118,33 @@ Return ONLY the URL of the best LinkedIn profile. Avoid any additional text.
     except Exception as e:
         return "Gemini Error", f"Gemini API Error: {str(e)}"
 
+# === STREAMLIT UI ===
+
+st.set_page_config(page_title="LinkedIn Executive Scraper", page_icon="🔍")
+
+st.title("🔍 LinkedIn Executive Scraper")
+st.markdown("""
+Find the most likely **Founder, CEO, or Owner** LinkedIn profile for any company.
+""")
+
+# Check for API keys
+if not SERPER_API_KEY or not GEMINI_API_KEY:
+    st.error("⚠️ API Keys missing! Please ensure `SERPER_API_KEY` and `GEMINI_API_KEY` are set in your `.env` file.")
+    st.stop()
+
+# Helper for processing a list of companies
+def process_scraping(company_list):
+    results = []
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    for index, company in enumerate(company_list):
+        status_text.text(f"Processing: {company} ({index+1}/{len(company_list)})")
+        
+        profiles, error = get_linkedin_links(company)
+        error_msg = error
+        best_profile = "Search Failed"
+        
+        if not error:
+            best_profile, ai_error = pick_best_profile(company, profiles)
+            if ai_error:
