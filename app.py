@@ -88,3 +88,33 @@ Return ONLY the URL of the best LinkedIn profile. Avoid any additional text.
             backoff = 2
             
             for attempt in range(retry_attempts):
+                try:
+                    response = client.models.generate_content(
+                        model=name,
+                        contents=prompt
+                    )
+                    return response.text.strip(), None
+                except Exception as inner_e:
+                    last_error = inner_e
+                    err_str = str(inner_e).lower()
+                    
+                    # If it's a rate limit error, wait and retry
+                    if "429" in err_str or "resource_exhausted" in err_str:
+                        if attempt < retry_attempts - 1:
+                            time.sleep(backoff * (attempt + 1))
+                            continue
+                        else:
+                            break # Move to next model if this one is exhausted
+                    
+                    # If it's a 404/Unsupported, move to next model immediately
+                    if "not found" in err_str or "unsupported" in err_str:
+                        break 
+                    
+                    # For other errors, don't retry, just move to next model
+                    break
+        
+        error_msg = str(last_error)
+        return "Gemini Error", f"Gemini API Error: {error_msg}"
+    except Exception as e:
+        return "Gemini Error", f"Gemini API Error: {str(e)}"
+
