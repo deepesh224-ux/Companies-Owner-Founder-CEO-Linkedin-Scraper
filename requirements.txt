@@ -1,6 +1,6 @@
 requests
 pandas
 python-dotenv
-streamlit
+streamlit>=1.35.0
 google-genai
 altair<5
