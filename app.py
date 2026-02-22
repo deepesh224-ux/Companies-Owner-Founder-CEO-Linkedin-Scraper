@@ -58,3 +58,33 @@ def pick_best_profile(company, profiles):
         return "No profiles found", None
 
     prompt = f"""You are a research assistant.
+
+Given the company "{company}", and the following LinkedIn profiles found via search:
+{chr(10).join(profiles)}
+
+Which one is most likely the **CURRENT** Founder, CEO, or top primary executive of the company "{company}"? 
+
+### GUIDELINES:
+1. **EXACT MATCH**: Favor the primary company "{company}". For example, if searching for 'Tesla', favor 'Tesla, Inc.' or 'Tesla' over 'Tesla Power USA'.
+2. **CURRENT ONLY**: Prioritize roles that indicate "Current" or "Present". Avoid "Former" or "Past" unless it's a very prominent founder.
+3. **SMART REASONING**: If you see a globally recognized leader for a famous company name (e.g., Elon Musk for Tesla), prioritize that profile.
+4. **BEST GUESS**: If you are unsure, pick the profile that is most likely to be the leader of the primary company represented by that name.
+
+Return ONLY the URL of the best LinkedIn profile. Avoid any additional text.
+"""
+
+    try:
+        # Prioritize the model the user confirmed works, then modern flash models
+        model_names = [
+            "gemini-3-flash-preview", 
+            "gemini-2.0-flash", 
+            "gemini-1.5-flash", 
+            "gemini-1.5-pro",
+        ]
+        
+        last_error = None
+        for name in model_names:
+            retry_attempts = 3
+            backoff = 2
+            
+            for attempt in range(retry_attempts):
