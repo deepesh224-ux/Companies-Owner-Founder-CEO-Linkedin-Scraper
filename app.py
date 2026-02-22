@@ -148,3 +148,33 @@ def process_scraping(company_list):
         if not error:
             best_profile, ai_error = pick_best_profile(company, profiles)
             if ai_error:
+                error_msg = ai_error
+        
+        results.append({
+            "Company": company,
+            "Best LinkedIn URL": best_profile,
+            "Error": error_msg or ""
+        })
+        
+        progress_bar.progress((index + 1) / len(company_list))
+        time.sleep(1.0) # Increased delay to be kind to the API quota
+        
+    status_text.text("✅ Processing complete!")
+    return pd.DataFrame(results)
+
+# UI Tabs
+tab1, tab2 = st.tabs(["🚀 Bulk Search (CSV)", "🔍 Single Search"])
+
+with tab1:
+    uploaded_file = st.file_uploader("Upload Companies CSV", type=["csv"])
+    if uploaded_file is not None:
+        df = pd.read_csv(uploaded_file)
+        if 'Company' not in df.columns:
+            st.error("CSV must have a column named 'Company'")
+        else:
+            st.write(f"Loaded {len(df)} companies.")
+            if st.button("Start Bulk Scraping"):
+                results_df = process_scraping(df['Company'].tolist())
+                st.subheader("Results")
+                st.dataframe(results_df)
+                
