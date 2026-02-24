@@ -1,3 +1,13 @@
+import sys
+try:
+    import imghdr
+except ImportError:
+    # imghdr was removed in Python 3.13, monkeypatching for Streamlit
+    import types
+    m = types.ModuleType("imghdr")
+    m.what = lambda file, h=None: None
+    sys.modules["imghdr"] = m
+
 import streamlit as st
 import pandas as pd
 import requests
@@ -10,35 +20,145 @@ from google import genai
 # Load environment variables
 load_dotenv()
 
-# === CONFIGURATION ===
-SERPER_API_KEY = os.getenv('SERPER_API_KEY')
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+# === PAGE CONFIG ===
+st.set_page_config(
+    page_title="Executive Scraper v3",
+    page_icon="�",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# === INITIALIZE STATE ===
+if 'history' not in st.session_state:
+    st.session_state.history = []
+
+# === CUSTOM CSS (Hyper-Premium) ===
+st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
+    
+    html, body, [class*="css"] {
+        font-family: 'Outfit', sans-serif;
+    }
+    
+    .stApp {
+        background: radial-gradient(circle at top right, #1a1f2c, #0e1117);
+    }
+    
+    /* Premium Metric Style */
+    div[data-testid="stMetricValue"] {
+        font-size: 2rem;
+        background: -webkit-linear-gradient(#4fd1c5, #238636);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    /* Glass Cards */
+    .glass-card {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        padding: 2rem;
+        border-radius: 16px;
+        backdrop-filter: blur(20px);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        margin-bottom: 25px;
+        transition: all 0.3s ease;
+    }
+    
+    .glass-card:hover {
+        border: 1px solid rgba(79, 209, 197, 0.3);
+        background: rgba(255, 255, 255, 0.05);
+    }
+
+    .icebreaker-box {
+        background: rgba(79, 209, 197, 0.05);
+        border-left: 4px solid #4fd1c5;
+        padding: 1.25rem;
+        border-radius: 8px;
+        margin-top: 15px;
+        font-size: 0.95rem;
+        color: #e6edf3;
+    }
+    
+    .confidence-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: bold;
+        background: rgba(79, 209, 197, 0.2);
+        color: #4fd1c5;
+        border: 1px solid rgba(79, 209, 197, 0.3);
+        margin-bottom: 10px;
+    }
+    
+    /* Quick Try Buttons */
+    .stButton>button {
+        transition: transform 0.1s active;
+    }
+    
+    .quick-try-label {
+        font-size: 0.8rem;
+        color: #8b949e;
+        margin-bottom: 8px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# === SIDEBAR CONFIGURATION ===
+with st.sidebar:
+    st.image("https://img.icons8.com/external-flatart-icons-outline-flatarticons/128/4fd1c5/external-search-marketing-flatart-icons-outline-flatarticons.png", width=60)
+    st.title("Control Panel")
+    
+    st.markdown("---")
+    
+    # API Verification
+    serper_key = os.getenv('SERPER_API_KEY')
+    gemini_key = os.getenv('GEMINI_API_KEY')
+    
+    if not serper_key or not gemini_key:
+        st.error("🔑 Keys Missing in .env")
+    else:
+        st.success("🛰️ Processing Node: Online")
+
+    st.markdown("---")
+    
+    # Persona Selection
+    st.subheader("🎯 Active Persona")
+    personas = {
+        "Executive Strategy": "Owner OR Founder OR Co-founder OR CEO OR Managing Director",
+        "Technical Leadership": "CTO OR 'VP of Engineering' OR 'Head of Engineering' OR Founder",
+        "Growth & Sales": "'VP of Sales' OR 'Head of Sales' OR 'Director of Sales' OR Founder"
+    }
+    selected_persona = st.selectbox("", list(personas.keys()))
+    persona_query = personas[selected_persona]
+
+    st.markdown("---")
+    
+    # History
+    if st.session_state.history:
+        st.subheader("🕑 Search History")
+        for item in reversed(st.session_state.history[-5:]):
+            st.caption(f"• {item}")
+
+    st.markdown("---")
+    st.caption("v3.0.1 Dashboard • Secure Tier")
 
 # Initialize Gemini Client
 client = None
-if GEMINI_API_KEY:
-    client = genai.Client(api_key=GEMINI_API_KEY)
-
-# === HEADERS ===
-SERPER_HEADERS = {
-    "X-API-KEY": SERPER_API_KEY,
-    "Content-Type": "application/json"
-}
+if gemini_key:
+    client = genai.Client(api_key=gemini_key)
 
 # === LOGIC FUNCTIONS ===
 
-def get_linkedin_links(company_name):
-    # Refined query to avoid affiliated companies like "Tesla Power USA"
-    # Adding "Inc" or similar can help but can also miss. Using quotes around the name is good.
-    # We'll stick to a broader search but give more context to Gemini.
-    query = f'site:linkedin.com/in "{company_name}" (Owner OR Founder OR Co-founder OR CEO OR Managing Director)'
+def get_linkedin_links(company_name, query_roles):
+    query = f'site:linkedin.com/in "{company_name}" ({query_roles})'
     url = "https://google.serper.dev/search"
-    body = {
-        "q": query,
-        "num": 10
-    }
+    body = {"q": query, "num": 10}
+    headers = {"X-API-KEY": serper_key, "Content-Type": "application/json"}
+    
     try:
-        response = requests.post(url, json=body, headers=SERPER_HEADERS, timeout=10)
+        response = requests.post(url, json=body, headers=headers, timeout=10)
         response.raise_for_status()
         data = response.json()
         links = []
@@ -47,151 +167,146 @@ def get_linkedin_links(company_name):
             title = result.get("title", "")
             snippet = result.get("snippet", "")
             if "linkedin.com/in" in link:
-                # Include snippet for more context to Gemini
                 links.append(f"Title: {title} | Link: {link} | Snippet: {snippet}")
         return links, None
     except Exception as e:
-        return [], f"Search error: {str(e)}"
+        return [], str(e)
 
 def pick_best_profile(company, profiles):
     if not profiles:
-        return "No profiles found", None
+        return None, None, 0, "No profiles found"
 
-    prompt = f"""You are a research assistant.
+    prompt = f"""Analyze the following LinkedIn results for "{company}". Find the primary leader matching the target profile.
 
-Given the company "{company}", and the following LinkedIn profiles found via search:
 {chr(10).join(profiles)}
 
-Which one is most likely the **CURRENT** Founder, CEO, or top primary executive of the company "{company}"? 
-
-### GUIDELINES:
-1. **EXACT MATCH**: Favor the primary company "{company}". For example, if searching for 'Tesla', favor 'Tesla, Inc.' or 'Tesla' over 'Tesla Power USA'.
-2. **CURRENT ONLY**: Prioritize roles that indicate "Current" or "Present". Avoid "Former" or "Past" unless it's a very prominent founder.
-3. **SMART REASONING**: If you see a globally recognized leader for a famous company name (e.g., Elon Musk for Tesla), prioritize that profile.
-4. **BEST GUESS**: If you are unsure, pick the profile that is most likely to be the leader of the primary company represented by that name.
-
-Return ONLY the URL of the best LinkedIn profile. Avoid any additional text.
+### REQUIRED JSON RESPONSE:
+Return ONLY a JSON object:
+{{
+  "url": "linkedin URL",
+  "icebreaker": "1-sentence cold intro",
+  "confidence": "score between 0-100"
+}}
 """
 
     try:
-        # Prioritize the model the user confirmed works, then modern flash models
-        model_names = [
-            "gemini-3-flash-preview", 
-            "gemini-2.0-flash", 
-            "gemini-1.5-flash", 
-            "gemini-1.5-pro",
-        ]
-        
-        last_error = None
+        model_names = ["gemini-3-flash-preview", "gemini-2.0-flash", "gemini-1.5-flash"]
         for name in model_names:
-            retry_attempts = 3
-            backoff = 2
-            
-            for attempt in range(retry_attempts):
-                try:
-                    response = client.models.generate_content(
-                        model=name,
-                        contents=prompt
-                    )
-                    return response.text.strip(), None
-                except Exception as inner_e:
-                    last_error = inner_e
-                    err_str = str(inner_e).lower()
-                    
-                    # If it's a rate limit error, wait and retry
-                    if "429" in err_str or "resource_exhausted" in err_str:
-                        if attempt < retry_attempts - 1:
-                            time.sleep(backoff * (attempt + 1))
-                            continue
-                        else:
-                            break # Move to next model if this one is exhausted
-                    
-                    # If it's a 404/Unsupported, move to next model immediately
-                    if "not found" in err_str or "unsupported" in err_str:
-                        break 
-                    
-                    # For other errors, don't retry, just move to next model
-                    break
-        
-        error_msg = str(last_error)
-        return "Gemini Error", f"Gemini API Error: {error_msg}"
+            try:
+                response = client.models.generate_content(
+                    model=name, 
+                    contents=prompt,
+                    config={"response_mime_type": "application/json"}
+                )
+                data = response.parsed
+                if not data: # Fallback for some models
+                    import json
+                    data = json.loads(response.text.strip())
+                return data["url"], data["icebreaker"], data["confidence"], None
+            except:
+                continue
+        return "Search Failed", "N/A", 0, "AI Analysis Error"
     except Exception as e:
-        return "Gemini Error", f"Gemini API Error: {str(e)}"
+        return "Error", "N/A", 0, str(e)
 
-# === STREAMLIT UI ===
+# === MAIN UI ===
 
-st.set_page_config(page_title="LinkedIn Executive Scraper", page_icon="🔍")
+col_logo, col_title = st.columns([1, 12])
+with col_logo:
+    st.image("https://img.icons8.com/fluency/96/crown.png", width=60)
+with col_title:
+    st.title("Executive Scraper v3")
+    st.caption("Hyper-Precision Intelligence Dashboard")
 
-st.title("🔍 LinkedIn Executive Scraper")
-st.markdown("""
-Find the most likely **Founder, CEO, or Owner** LinkedIn profile for any company.
-""")
-
-# Check for API keys
-if not SERPER_API_KEY or not GEMINI_API_KEY:
-    st.error("⚠️ API Keys missing! Please ensure `SERPER_API_KEY` and `GEMINI_API_KEY` are set in your `.env` file.")
-    st.stop()
-
-# Helper for processing a list of companies
-def process_scraping(company_list):
-    results = []
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-    
-    for index, company in enumerate(company_list):
-        status_text.text(f"Processing: {company} ({index+1}/{len(company_list)})")
-        
-        profiles, error = get_linkedin_links(company)
-        error_msg = error
-        best_profile = "Search Failed"
-        
-        if not error:
-            best_profile, ai_error = pick_best_profile(company, profiles)
-            if ai_error:
-                error_msg = ai_error
-        
-        results.append({
-            "Company": company,
-            "Best LinkedIn URL": best_profile,
-            "Error": error_msg or ""
-        })
-        
-        progress_bar.progress((index + 1) / len(company_list))
-        time.sleep(1.0) # Increased delay to be kind to the API quota
-        
-    status_text.text("✅ Processing complete!")
-    return pd.DataFrame(results)
-
-# UI Tabs
-tab1, tab2 = st.tabs(["🚀 Bulk Search (CSV)", "🔍 Single Search"])
+tab1, tab2 = st.tabs(["🚀 Bulk Intelligence", "🔍 Instant Discovery"])
 
 with tab1:
-    uploaded_file = st.file_uploader("Upload Companies CSV", type=["csv"])
-    if uploaded_file is not None:
+    m1, m2, m3 = st.columns(3)
+    
+    uploaded_file = st.file_uploader("Drop company list here", type=["csv"], label_visibility="collapsed")
+    
+    if uploaded_file:
         df = pd.read_csv(uploaded_file)
-        if 'Company' not in df.columns:
-            st.error("CSV must have a column named 'Company'")
-        else:
-            st.write(f"Loaded {len(df)} companies.")
-            if st.button("Start Bulk Scraping"):
-                results_df = process_scraping(df['Company'].tolist())
-                st.subheader("Results")
-                st.dataframe(results_df)
+        if 'Company' in df.columns:
+            m1.metric("Companies", len(df))
+            
+            if st.button("Unlock All Insights", use_container_width=True):
+                results = []
+                progress = st.progress(0)
+                success_count = 0
                 
-                csv = results_df.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="Download Results as CSV",
-                    data=csv,
-                    file_name="founders_ceos_linkedin.csv",
-                    mime="text/csv",
-                )
+                with st.status("Initializing High-Speed Scrape...", expanded=True) as status_box:
+                    for i, company in enumerate(df['Company']):
+                        status_box.update(label=f"Analyzing {company}...", state="running")
+                        
+                        profiles, err = get_linkedin_links(company, persona_query)
+                        url, summary, conf, ai_err = pick_best_profile(company, profiles)
+                        
+                        if url and "linkedin.com" in str(url):
+                            success_count += 1
+                        
+                        results.append({
+                            "Company": company,
+                            "Profile URL": url,
+                            "Icebreaker": summary,
+                            "Conf %": conf,
+                            "Log": (err or ai_err or "OK")
+                        })
+                        
+                        # Update metrics live
+                        m2.metric("Verified", success_count)
+                        m3.metric("Precision", f"{(success_count/(i+1)*100):.1f}%")
+                        progress.progress((i + 1) / len(df))
+                        time.sleep(1)
+                        
+                    status_box.update(label="Intelligence Gathered!", state="complete", expanded=False)
+                
+                res_df = pd.DataFrame(results)
+                st.dataframe(res_df, use_container_width=True, height=400)
+                
+                csv = res_df.to_csv(index=False).encode('utf-8')
+                st.download_button("📥 Export Intelligence", data=csv, file_name="executive_research.csv", mime="text/csv")
+        else:
+            st.error("Error: CSV must contain a 'Company' column.")
 
 with tab2:
-    single_company = st.text_input("Enter Company Name", placeholder="e.g., Tesla")
-    if st.button("Search Profile"):
-        if single_company:
-            results_df = process_scraping([single_company])
-            st.subheader("Result")
-            st.dataframe(results_df)
-        else:
-            st.warning("Please enter a company name.")
+    col_input, col_examples = st.columns([3, 1])
+    
+    with col_input:
+        target = st.text_input("Company Domain or Name", placeholder="e.g. OpenAI", key="itarget")
+    
+    with col_examples:
+        st.markdown('<p class="quick-try-label">Quick Try:</p>', unsafe_allow_html=True)
+        ex_cols = st.columns(3)
+        if ex_cols[0].button("Stripe"): target = "Stripe"
+        if ex_cols[1].button("SpaceX"): target = "SpaceX"
+        if ex_cols[2].button("Nvidia"): target = "Nvidia"
+
+    if st.button("Start Discovery", type="primary", use_container_width=True) or (target and target != st.session_state.get('last_search')):
+        if target:
+            st.session_state.last_search = target
+            with st.status(f"Scanning the web for {target}...") as status:
+                profiles, err = get_linkedin_links(target, persona_query)
+                status.write("Results retrieved. Performing AI analysis...")
+                url, summary, conf, ai_err = pick_best_profile(target, profiles)
+                status.update(label="Analysis Finished", state="complete")
+            
+            if url and "linkedin.com" in str(url):
+                # Update history
+                if target not in st.session_state.history:
+                    st.session_state.history.append(target)
+                
+                st.markdown(f"""
+                    <div class="glass-card">
+                        <div class="confidence-badge">🎯 {conf}% Match Confidence</div>
+                        <h2 style="margin-top:0">{target} Leadership Identified</h2>
+                        <p style="font-size:1.1rem"><b>Target:</b> <a href="{url}" target="_blank" style="color:#4fd1c5">{url}</a></p>
+                        <div class="icebreaker-box">
+                            💡 <b>Cold Outreach Suggestion:</b><br>
+                            "{summary}"
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+                st.balloons()
+            else:
+                st.error("Discovery failed. The profile might be private or the company name is too broad.")
