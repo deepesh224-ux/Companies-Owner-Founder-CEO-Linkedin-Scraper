@@ -23,7 +23,7 @@ load_dotenv()
 # === PAGE CONFIG ===
 st.set_page_config(
     page_title="Executive Scraper v3",
-    page_icon="�",
+    page_icon="Search",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -117,32 +117,32 @@ with st.sidebar:
     gemini_key = os.getenv('GEMINI_API_KEY')
     
     if not serper_key or not gemini_key:
-        st.error("🔑 Keys Missing in .env")
+        st.error("Keys Missing in .env")
     else:
-        st.success("🛰️ Processing Node: Online")
+        st.success("Processing Node: Online")
 
     st.markdown("---")
     
     # Persona Selection
-    st.subheader("🎯 Active Persona")
+    st.subheader("Active Persona")
     personas = {
         "Executive Strategy": "Owner OR Founder OR Co-founder OR CEO OR Managing Director",
         "Technical Leadership": "CTO OR 'VP of Engineering' OR 'Head of Engineering' OR Founder",
         "Growth & Sales": "'VP of Sales' OR 'Head of Sales' OR 'Director of Sales' OR Founder"
     }
-    selected_persona = st.selectbox("", list(personas.keys()))
+    selected_persona = st.selectbox("Active Persona", list(personas.keys()), label_visibility="collapsed")
     persona_query = personas[selected_persona]
 
     st.markdown("---")
     
     # History
     if st.session_state.history:
-        st.subheader("🕑 Search History")
+        st.subheader("Search History")
         for item in reversed(st.session_state.history[-5:]):
             st.caption(f"• {item}")
 
     st.markdown("---")
-    st.caption("v3.0.1 Dashboard • Secure Tier")
+    st.caption("v3.0.2 Dashboard • Secure Tier")
 
 # Initialize Gemini Client
 client = None
@@ -218,7 +218,7 @@ with col_title:
     st.title("Executive Scraper v3")
     st.caption("Hyper-Precision Intelligence Dashboard")
 
-tab1, tab2 = st.tabs(["🚀 Bulk Intelligence", "🔍 Instant Discovery"])
+tab1, tab2 = st.tabs(["Bulk Intelligence", "Instant Discovery"])
 
 with tab1:
     m1, m2, m3 = st.columns(3)
@@ -249,7 +249,7 @@ with tab1:
                             "Company": company,
                             "Profile URL": url,
                             "Icebreaker": summary,
-                            "Conf %": conf,
+                            "Confidence": conf,
                             "Log": (err or ai_err or "OK")
                         })
                         
@@ -265,7 +265,7 @@ with tab1:
                 st.dataframe(res_df, use_container_width=True, height=400)
                 
                 csv = res_df.to_csv(index=False).encode('utf-8')
-                st.download_button("📥 Export Intelligence", data=csv, file_name="executive_research.csv", mime="text/csv")
+                st.download_button("Export Intelligence", data=csv, file_name="executive_research.csv", mime="text/csv")
         else:
             st.error("Error: CSV must contain a 'Company' column.")
 
@@ -298,15 +298,14 @@ with tab2:
                 
                 st.markdown(f"""
                     <div class="glass-card">
-                        <div class="confidence-badge">🎯 {conf}% Match Confidence</div>
+                        <div class="confidence-badge">Confidence: {conf}%</div>
                         <h2 style="margin-top:0">{target} Leadership Identified</h2>
                         <p style="font-size:1.1rem"><b>Target:</b> <a href="{url}" target="_blank" style="color:#4fd1c5">{url}</a></p>
                         <div class="icebreaker-box">
-                            💡 <b>Cold Outreach Suggestion:</b><br>
+                            <b>Cold Outreach Suggestion:</b><br>
                             "{summary}"
                         </div>
                     </div>
                 """, unsafe_allow_html=True)
-                st.balloons()
             else:
                 st.error("Discovery failed. The profile might be private or the company name is too broad.")
